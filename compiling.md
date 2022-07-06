@@ -24,7 +24,7 @@ By default, g++ will create an executable file named a.out. Output file name can
     ./hello
 ```
     
-#SOURCES
+# Sources
 https://earthly.dev/blog/g++-makefile/
 
 
