@@ -91,7 +91,7 @@ all:
 
 ?= can be used to define a variable only if they have not been defined already.
 
-### Automatic Variables and Wildcards
+### Wildcards
 
 The 
 `*`
@@ -107,11 +107,50 @@ print: $(wildcard *.c)
 | | | 
 | -- | -- | 
 | ls | lists files in directory |
-| -l | provides additional options to ls command, providing info on read/write access, owner account, group name, file size, time of last modification, and file name. works the same as -la or -al |
+| -la | provides additional options to ls command, providing info on read/write access, owner account, group name, file size, time of last modification, and file name. |
+
+The 
+`%`
+wildcard can be used in two modes:
+* Matching - matches one or more characters in a string. the match is called a stem.
+* Replacing - takes a matched stem and replaces that in a string.
+
+It is most useful for:
+* Pattern Rules and Static Pattern Rules
+* String Substitution
+* The vpath Directive
+
+### Automatic Variables
+
+There are [many](https://www.gnu.org/software/make/manual/html_node/Automatic-Variables.html) automatic variables. Very commonly you'll see:
+
+| Automatic Variable | Description |
+| -- | -- |
+| `$@` | the filename of the target of the rule. if the target is an archive member, then `$@` is  the name of the archive file. in a pattern rule with multiple targets, `$@` is the name of whichver target caused the rule's recipe to be run |
+| `$?` | the names of all the prerequisites that are newer than the target, with spaces in between. if the target does not exist, all prerequisites wil be included. for prerequisites that are archvie members, only the named member is used. |
+|`$^` | the names of all the prerequisites, with spaces between them. for prerequisites which are archive members, only the named member is used. if a prerequisite is listed more than once for a target, the value of `$^` contains just one copy of the name. this list does *not* contain any of the order-only prerequisites (for which ` $\| ` is required) |
+
+```make
+one: two three
+	echo $@
+	echo $?
+	echo $^
+	touch one
+
+two:
+	touch two
+
+three:
+	touch three
+
+clean:
+	rm -f one two three
+```
 
 ### File Name Functions for Variables
 
 For most functional applications of strings (for file names) see the GNU documentation [here](https://www.gnu.org/software/make/manual/html_node/File-Name-Functions.html#File-Name-Functions).
+
 
 ## Targets
 
@@ -146,6 +185,51 @@ one.o two.o:
 # two.o:
 #	 echo two.o
 ```
+
+## Implicit Rules
+
+| Implicit Rules | Definition | From Command |
+| -- | -- | -- | 
+| Compiling C | a.o is made automatically from a.c | `$(CC) -c $(CPPFLAGS) $(CFLAGS)` |
+| Compiling C++ | a.o is made automatically from a.cc or a.cpp | `$(CXX) -c $(CPPFLAGS) $(CXXFLAGS)` |
+| Linking a single object file | a is made automatically from a.o | `$(CC) $(LDFLAGS) n.o $(LOADLIBES) $(LDLIBS)`|
+
+Important Variables:
+| | |
+| -- | -- |
+| `CC` | program for compiling C programs; default `cc` | 
+| `CXX` | program for compiling C++ programs; default `g++` |
+| `CFLAGS` | extra flags to give to the C compiler |
+| `CXXFLAGS` | extra flags to give to the C++ compiler |
+| `CPPFLAGS` | extra flags to tive to the C preprocessor |
+| `LDFLAGS` | extra flags to give to compilers when they are supposed to invoke the linker | 
+
+```make
+CC = gcc # Flag for implicit rules
+CFLAGS = -g # Flag for implicit rules. Turn on debug info
+
+# Implicit rule #1: test.c is built via the C linker implicit rule
+# Implicit rule #2: test.o is built via the C compilation implicit rule, because test.c exists
+# Implicit rule #3: test is built via the C linker implicit rule
+test: test.o
+
+test.c:
+	echo "int main() { return 0; }" > test.c
+
+clean:
+	rm -f test*
+```
+
+## General Concepts
+
+* Flags can be arranged in any order, ie:
+ `ls -la`
+is equivalent to 
+`ls -al`
+
+* If you want to understand why a specific flag is being used with a command, consult the
+manual: 
+`man ls`
 
 # Sources
 * https://makefiletutorial.com/
