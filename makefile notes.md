@@ -68,7 +68,11 @@ clean:
 	rm -f file1 file2 some_file
 ```
 
-Variables can be appended:
+Variables can be appended using
+`:=`
+or
+`+=`
+:
 
 ```make
 one = hello
@@ -89,7 +93,8 @@ all:
 	echo $(foo)
 ```
 
-?= can be used to define a variable only if they have not been defined already.
+`?=`
+ can be used to define a variable only if they have not been defined already.
 
 ### Wildcards
 
@@ -151,6 +156,29 @@ clean:
 
 For most functional applications of strings (for file names) see the GNU documentation [here](https://www.gnu.org/software/make/manual/html_node/File-Name-Functions.html#File-Name-Functions).
 
+### Pattern and Target-Specific Variables
+Variables can be assigned for specific targets:
+
+```make
+all: one = cool
+
+all: 
+	echo one is defined: $(one)
+
+other:
+	echo one is nothing: $(one)
+```
+Variables can also be assigned for specific target patterns:
+
+```make
+%.c: one = cool
+
+blah.c: 
+	echo one is defined: $(one)
+
+other:
+	echo one is nothing: $(one)
+```
 
 ## Targets
 
@@ -220,6 +248,279 @@ clean:
 	rm -f test*
 ```
 
+## Static Pattern Rules
+
+These rules have a distinct syntax:
+
+```make
+targets...: target-pattern: pre-req patterns ...
+	recipe
+```
+
+The given
+`target`
+is matched by the
+`target-pattern`
+via
+`%`
+wildcard. The stem is then substituted into the
+`prereq-pattern`
+, to generate the target's prereqs.
+
+A typical use case is to compile
+`.c`
+files into
+`.o`
+files. Here's the manual way:
+
+```make
+objects = foo.o bar.o all.o
+all: $(objects)
+
+# These files compile via implicit rules
+foo.o: foo.c
+bar.o: bar.c
+all.o: all.c
+
+all.c:
+	echo "int main() { return 0; }" > all.c
+
+%.c:
+	touch $@
+
+clean:
+	rm -f *.c *.o all
+```
+
+And here is the efficient way, using a static pattern rule:
+
+```make
+objects = foo.o bar.o all.o
+all: $(objects)
+
+# These files compile via implicit rules
+# Syntax - targets ...: target-pattern: prereq-patterns ...
+# In the case of the first target, foo.o, the target-pattern matches foo.o and sets the "stem" to be "foo".
+# It then replaces the '%' in prereq-patterns with that stem
+$(objects): %.o: %.c
+
+all.c:
+	echo "int main() { return 0; }" > all.c
+
+%.c:
+	touch $@
+
+clean:
+	rm -f *.c *.o all
+```
+
+## Pattern Rules
+Pattern rules are a way to define your own implicit rules, or perhaps a simpler form of static pattern rules. 
+
+```make
+# Define a pattern rule that compiles every .c file into a .o file
+%.o : %.c
+	$(CC) -c $(CFLAGS) $(CPPFLAGS) $< -o $@
+```
+
+Pattern rules contain a 
+`%`
+in the target, which matches any nonempty string, and the other characters match themselves. 
+`%` 
+in a prereq of a pattern rule stands for the same stem that was matched by the
+`%`
+in the target.
+
+### Double-Colon Rules
+Rarely used, but allow multiple rules to be defined for the same target. With a single colon, a warning would be printed and only the last set of commands would be run:
+
+```make
+all: hello
+
+hello::
+	echo "hello"
+
+hello::
+	echo "hello again"
+```
+
+## Recipes, Commands and Execution
+
+### Conditional
+If/else statements are possible in recipes:
+
+```make
+foo = ok
+
+all:
+ifeq ($(foo), ok)
+	@echo "foo equals ok"
+else
+	@echo "nope"
+endif
+```
+
+This has a lot of utility. It can check if a variable is empty:
+
+```make
+nullstring =
+foo = $("hello") # end of line; there is a space here
+
+all:
+ifeq ($(strip $(foo)),)
+	echo "foo is empty after being stripped"
+endif
+ifeq ($(nullstring),)
+	echo "nullstring doesn't even have spaces"
+endif
+```
+
+It can also check if a variable is defied without expanding the variable reference:
+
+```make
+bar =
+foo = $(bar)
+
+all:
+ifdef foo
+	@echo "foo is defined"
+endif
+ifndef bar
+	@echo "but bar is not"
+endif
+```
+
+### Command Echoing and Silencing
+Add an 
+`@`
+before a command to stop it from being printed. You can also run make with 
+`-s`
+to add an
+`@`
+before each line.
+
+### Error Handling
+
+| Flag | Result |
+| -- | -- |;
+| `-k` | use with `make` to continue running even with errors, good for seeing all errors |
+| `-` | add before a command to surpress the error |
+| `-i` | use with `make` to supress errors from all commands |
+
+```make
+one:
+	# This error will be printed but ignored, and make will continue to run
+	-false
+	touch one
+clean:
+	rm one;
+```
+
+## Functions
+Functions are mainly for text processing. Call functions with 
+`$(fun, arguments)`
+or
+`${fun, arguments}
+. Using the 
+`call`
+builtin function, it is possible to make custom functions. Find a list of builtin functions [here](https://www.gnu.org/software/make/manual/html_node/Functions.html).
+
+### String Substitution
+
+`(patsubst pattern,replacement,text)`
+: finds whitespace separated words in a text that match pattern and replaces them with replacement. Here, pattern may contain a
+`%`
+which acts as a wildcard, matching any number of any characters within a word. If replacement also contains a 
+`%`
+, the
+`%`
+is replaced by the texted that matched the
+`%`
+in pattern. Only the first 
+`%`
+in the pattern and replacement is treated this way.
+
+The substitution reference
+`(text:pattern=replacement)`
+is a shorthand for this.
+
+There's also 
+`$(text:suffix=replacement)`
+that replaces only suffixes.
+
+```make
+foo := a.o b.o c.o l.a
+bar := d.o f.o g.o
+foobar := h.o i.o j.o
+one := $(patsubst %.o,%.c,$(foo))
+# This is a shorthand for the above
+two := $(bar:%.o=%.c)
+# This is the suffix-only shorthand, and is also equivalent to the above.
+three := $(foobar:.o=.c)
+
+all:
+	@echo $(one)
+	@echo $(two)
+	@echo $(three)
+```
+
+### foreach Function
+`$(foreach var,list,text)`
+converts one list of words (separated by spaces) to another.
+`var`
+is set to each word in list, and 
+`text`
+is expanded word for word. 
+
+```make
+foo := have a good day
+# For each "word" in foo, output that same word with an exclamation after
+bar := $(foreach wrd,$(foo),$(wrd)!)
+# Output is "have! a! good! day!"
+all:
+	@echo $(bar)
+```
+
+### if Function
+`if`
+checks if the first argument is empty. If it isn't empty, the second argument is run. If it is empty, the third argument is run.
+
+```made
+not-empty := "hello"
+foo := $(if $(not-empty),then!,else!)
+empty :=
+bar := $(if $(empty),then!,else!)
+
+all:
+	@echo $(foo)
+	@echo $(bar)
+```
+
+### call Function
+Make supports creating basic functions. You "define" the funtion by crating a veriable, but use the parameters
+`$(0)`
+,
+`$(1)`
+etc. You then call the function with the
+`call`
+function. The syntax is
+`$(call variable,param,param)`
+.
+`$(0)`
+is the variable, while
+`$(1)`
+,
+`$(2)`
+, etc. are the parameters.
+
+```make
+new_fn = Variable Name: $(0) First: $(1) Second: $(2) Empty Variable: $(3)
+
+all:
+	@echo $(call new_fn, hello,world)
+	@echo $(call new_fn, hello,world,empty)
+```
+
 ## General Concepts
 
 * Flags can be arranged in any order, ie:
@@ -230,6 +531,30 @@ is equivalent to
 * If you want to understand why a specific flag is being used with a command, consult the
 manual: 
 `man ls`
+
+* The backslash character
+`\`
+gives us the ability to use multiple lines when commands are too long:
+
+```make
+some_file: 
+	@echo This line is too long, so \
+		it is broken up into multiple lines
+```
+* Adding 
+`.PHONY` 
+to a target will prevent make from confusing the phony target with a file name. For example, if you have a file called clean, you can stil run a traditional clean function. It is best practice to use phony on all targets that are not file names.
+
+```make
+some_file:
+	touch some_file
+	touch clean
+
+.PHONY: clean
+clean:
+	rm -f some_file
+	rm -f clean
+```
 
 # Sources
 * https://makefiletutorial.com/
