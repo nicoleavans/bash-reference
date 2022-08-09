@@ -28,6 +28,13 @@ More complex shell commands are composed of simple commands arranged together in
 | -p     | changes the output format to that specified by POSIX |
 | time   | causes timing statistics to be printed for the pipeline when it finishes |
 
+control key commands
+
+| ctrl + | function |
+| ------ | -------- |
+| c | kill process | 
+| l | clear console | 
+
 control operator
 A token that performs a control function. It is a newline or one of the following: 
 ‘||’, ‘&&’, ‘&’, ‘;’, ‘;;’, ‘;&’, ‘;;&’, ‘|’, ‘|&’, ‘(’, or ‘)’.
