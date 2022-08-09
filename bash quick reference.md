@@ -14,6 +14,9 @@ More complex shell commands are composed of simple commands arranged together in
 | --- | --- |
 | pwd | print working directory |
 | cd     | change working directory |
+| cd     | home directory |
+| cd ~   | home directory |
+| cd -   | navigate to the previous directory | 
 | cd /   | change directory to root |
 | mkdir  | create a new directory, with current directory as parent directory ie mkdir directoryname |
 | ls     | print list of files and subdirectories |
